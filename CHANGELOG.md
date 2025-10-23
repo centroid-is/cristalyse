@@ -1,3 +1,84 @@
+## 1.10.3 - 2025-10-23
+
+#### 🐛 Scale Padding Fix
+
+**Authored by [@jbbjarnason](https://github.com/jbbjarnason)** - Thank you for this fix!
+
+**Fixed Chart Shrinking During Pan Operations:**
+- Scale padding now initialized before painting charts
+- Prevents `setupYScale` from changing padding during panning
+- Chart maintains consistent size during all pan operations
+- Smooth user experience without unintended resize behavior
+
+**Technical Details:**
+- Added `_setupScales()` method to initialize X and Y scales before chart painting
+- Fixes bug where panning would call `setupYScale` and reduce chart dimensions
+- Applied to both animated chart render paths
+
+#### 🧪 Quality Assurance
+
+- All existing tests continue to pass
+- Zero breaking changes - fully backward compatible
+
+---
+
+## 1.10.2 - 2025-10-21
+
+#### 🎨 Heat Map Unification & Bounds Fixes
+
+**Authored by [@davidlrichmond](https://github.com/davidlrichmond)** - Thank you for this contribution!
+
+**Heat Map Color System Unification:**
+- Unified heat maps to use `GradientColorScale` for consistent color handling
+  - Eliminates duplicate color logic between heat maps and other chart types
+  - Improves maintainability and reduces technical debt
+  - Heat map colors now follow the same scaling principles as other geometries
+
+**Bounds Edge Cases & Validation:**
+- Fixed guard condition for corner case where `min > max` in bounds calculations
+  - Prevents invalid scale configurations that could crash rendering
+  - Added comprehensive test coverage for edge cases
+  - Improved documentation for bounds behavior with notes on invalid configurations
+
+**Code Quality:**
+- Addressed code rabbit review feedback on refactored code
+- Fixed deprecated `int` RGB getters for Flutter compatibility
+- Applied code formatting linter fixes
+
+#### 🧪 Quality Assurance
+
+- Added documentation and comprehensive test cases for bounds edge cases
+- All existing tests continue to pass
+- Zero breaking changes - fully backward compatible
+
+---
+
+## 1.10.1 - 2025-10-21
+
+#### 🐛 Bug Fixes & Testing
+
+**Authored by [@jbbjarnason](https://github.com/jbbjarnason)** - Thank you for this fix!
+
+**Wilkinson Labeling Precision:**
+- Fixed floating-point rounding in epoch millisecond label calculations
+    - Replaced `round()` with `roundToDouble()` for proper double precision handling
+    - Resolves issues with large number labeling (e.g., epoch timestamps)
+    - Added comprehensive test case for epoch millisecond labeling
+    - Test validates correct tick generation: [1760527000000.0, 1760528000000.0, 1760529000000.0, 1760530000000.0]
+
+**Technical Details:**
+- `_cleanNumber()` method in `WilkinsonLabeling` class now uses `roundToDouble()` instead of `round()`
+- Fixes edge case with very large timestamp values (>1.7 trillion milliseconds)
+- Maintains precision in float arithmetic for astronomical numbers
+
+#### 🧪 Quality Assurance
+
+- Added new test: "Bigger numbers, replicate epoch ms" to `wilkinson_labeling_test.dart`
+- All 286 tests passing (285 existing + 1 new test)
+- Zero breaking changes - fully backward compatible
+
+---
+
 ## 1.10.0 - 2025-10-07
 
 #### 🎨 Axis Titles & Bubble Size Guide
