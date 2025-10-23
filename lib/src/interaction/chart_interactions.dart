@@ -131,6 +131,7 @@ class PanConfig {
   final Duration throttle;
   final bool updateXDomain;
   final bool updateYDomain;
+  final PanController? controller;
 
   const PanConfig({
     this.enabled = true,
@@ -140,6 +141,7 @@ class PanConfig {
     this.throttle = const Duration(milliseconds: 100),
     this.updateXDomain = false,
     this.updateYDomain = false,
+    this.controller,
   });
 }
 
@@ -178,6 +180,24 @@ class PanInfo {
   @override
   String toString() {
     return 'PanInfo(xRange: [$visibleMinX, $visibleMaxX], yRange: [$visibleMinY, $visibleMaxY], state: $state)';
+  }
+}
+
+class PanController extends ChangeNotifier {
+  PanInfo? _targetPan;
+
+  PanInfo? get targetPan => _targetPan;
+
+  /// Pan to the target position
+  void panTo(PanInfo info) {
+    _targetPan = info;
+    notifyListeners();
+  }
+
+  /// Reset the pan to the initial position
+  void panReset() {
+    _targetPan = null;
+    notifyListeners();
   }
 }
 

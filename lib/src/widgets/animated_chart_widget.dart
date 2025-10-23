@@ -114,6 +114,10 @@ class _AnimatedCristalyseChartWidgetState
     );
 
     _animationController.forward();
+    if (widget.interaction.pan?.controller != null) {
+      widget.interaction.pan!.controller!
+          .addListener(_handlePanControllerUpdate);
+    }
   }
 
   @override
@@ -149,6 +153,10 @@ class _AnimatedCristalyseChartWidgetState
   void dispose() {
     _cachedTooltipController?.hideTooltip();
     _animationController.dispose();
+    if (widget.interaction.pan?.controller != null) {
+      widget.interaction.pan!.controller!
+          .removeListener(_handlePanControllerUpdate);
+    }
     super.dispose();
   }
 
@@ -364,6 +372,52 @@ class _AnimatedCristalyseChartWidgetState
 
     if (widget.interaction.tooltip?.builder != null) {
       hideTooltip(panEndContext);
+    }
+  }
+
+  void _handlePanControllerUpdate() {
+    final panController = widget.interaction.pan?.controller;
+    if (panController == null) return;
+    final panInfo = panController.targetPan;
+    if (panInfo == null) {
+      setState(() {
+        _panXDomain =
+            _originalXDomain != null ? List.from(_originalXDomain!) : null;
+        _panYDomain =
+            _originalYDomain != null ? List.from(_originalYDomain!) : null;
+      });
+      if (widget.interaction.pan?.onPanEnd != null) {
+        widget.interaction.pan!.onPanEnd!(PanInfo(
+          state: PanState.end,
+          visibleMinX: _originalXDomain?[0],
+          visibleMaxX: _originalXDomain?[1],
+          visibleMinY: _originalYDomain?[0],
+          visibleMaxY: _originalYDomain?[1],
+        ));
+      }
+    } else {
+      final xSupplied =
+          panInfo.visibleMaxX != null && panInfo.visibleMinX != null;
+      if (xSupplied) {
+        _panXDomain = [panInfo.visibleMinX!, panInfo.visibleMaxX!];
+      }
+      final ySupplied =
+          panInfo.visibleMaxY != null && panInfo.visibleMinY != null;
+      if (ySupplied) {
+        _panYDomain = [panInfo.visibleMinY!, panInfo.visibleMaxY!];
+      }
+      if (xSupplied || ySupplied) {
+        setState(() {});
+        if (widget.interaction.pan?.onPanEnd != null) {
+          widget.interaction.pan!.onPanEnd!(PanInfo(
+            state: PanState.end,
+            visibleMinX: panInfo.visibleMinX,
+            visibleMaxX: panInfo.visibleMaxX,
+            visibleMinY: panInfo.visibleMinY,
+            visibleMaxY: panInfo.visibleMaxY,
+          ));
+        }
+      }
     }
   }
 
