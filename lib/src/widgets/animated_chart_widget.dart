@@ -189,9 +189,10 @@ class _AnimatedCristalyseChartWidgetState
     super.dispose();
   }
 
+  /// Reset zoom baselines so they get recalculated from new data.
+  /// Preserves _panXDomain/_panYDomain (the active viewport) so the
+  /// chart doesn't snap back when data is updated in real-time.
   void _resetViewDomains() {
-    _panXDomain = null;
-    _panYDomain = null;
     _originalXDomain = null;
     _originalYDomain = null;
     _baseXSpan = null;
@@ -219,25 +220,36 @@ class _AnimatedCristalyseChartWidgetState
                 (_zoomConfig!.axes == ZoomAxis.y ||
                     _zoomConfig!.axes == ZoomAxis.both));
 
-    if (needsXDomain && _panXDomain == null) {
+    if (needsXDomain &&
+        (_panXDomain == null || _originalXDomain == null)) {
+      // Temporarily clear pan domain so _setupXScale returns the natural
+      // (unpanned) scale domain — _setupXScale feeds _panXDomain into
+      // setBounds for hit-testing, which would contaminate _originalXDomain.
+      final savedPanX = _panXDomain;
+      _panXDomain = null;
       final xScale = _setupXScale(plotArea.width, hasBarGeometry);
+      _panXDomain = savedPanX;
       if (xScale is LinearScale) {
-        _panXDomain = List<double>.from(xScale.domain);
-        _originalXDomain = List<double>.from(xScale.domain);
-        _baseXSpan = (_originalXDomain![1] - _originalXDomain![0]).abs();
+        _panXDomain ??= List<double>.from(xScale.domain);
+        _originalXDomain ??= List<double>.from(xScale.domain);
+        _baseXSpan ??= (_originalXDomain![1] - _originalXDomain![0]).abs();
       }
     }
 
-    if (needsYDomain && _panYDomain == null) {
+    if (needsYDomain &&
+        (_panYDomain == null || _originalYDomain == null)) {
+      final savedPanY = _panYDomain;
+      _panYDomain = null;
       final yScale = _setupYScale(
         plotArea.height,
         hasBarGeometry,
         YAxis.primary,
       );
+      _panYDomain = savedPanY;
       if (yScale is LinearScale) {
-        _panYDomain = List<double>.from(yScale.domain);
-        _originalYDomain = List<double>.from(yScale.domain);
-        _baseYSpan = (_originalYDomain![1] - _originalYDomain![0]).abs();
+        _panYDomain ??= List<double>.from(yScale.domain);
+        _originalYDomain ??= List<double>.from(yScale.domain);
+        _baseYSpan ??= (_originalYDomain![1] - _originalYDomain![0]).abs();
       }
     }
   }
@@ -477,11 +489,12 @@ class _AnimatedCristalyseChartWidgetState
     final panDelta = localFocalPoint - previousFocalPoint;
     final zoomActive = _isZoomEnabled && details.pointerCount >= 2;
 
+    bool zoomApplied = false;
     if (zoomActive) {
       final scaleDelta =
           details.scale / (_lastScaleFactor == 0 ? 1.0 : _lastScaleFactor);
       if (scaleDelta.isFinite && scaleDelta != 1.0) {
-        final zoomApplied = _applyZoom(
+        zoomApplied = _applyZoom(
           scaleDelta,
           localFocalPoint,
           plotArea,
@@ -495,7 +508,12 @@ class _AnimatedCristalyseChartWidgetState
     }
 
     if (panDelta != Offset.zero) {
+      // _handlePanUpdate fires onPanUpdate, covering both pan and zoom changes.
       _handlePanUpdate(context, localFocalPoint, panDelta, plotArea);
+    } else if (zoomApplied) {
+      // Pure zoom with no focal point movement — notify manually since
+      // _handlePanUpdate won't fire.
+      _emitPanUpdateFromZoom();
     }
 
     _lastScaleFocalPoint = localFocalPoint;
@@ -540,6 +558,7 @@ class _AnimatedCristalyseChartWidgetState
       _emitZoomEvent(plotArea, ZoomState.start);
       _emitZoomEvent(plotArea, ZoomState.update);
       _emitZoomEvent(plotArea, ZoomState.end);
+      _emitPanUpdateFromZoom();
     }
   }
 
@@ -1851,6 +1870,20 @@ class _AnimatedCristalyseChartWidgetState
     return changed;
   }
 
+  /// Notify pan listeners about a viewport change that did not originate
+  /// from a pan gesture (e.g. zoom via scroll wheel or buttons).
+  void _emitPanUpdateFromZoom() {
+    final panConfig = widget.interaction.pan;
+    if (panConfig?.onPanUpdate == null) return;
+    panConfig!.onPanUpdate!(PanInfo(
+      state: PanState.update,
+      visibleMinX: _panXDomain?[0],
+      visibleMaxX: _panXDomain?[1],
+      visibleMinY: _panYDomain?[0],
+      visibleMaxY: _panYDomain?[1],
+    ));
+  }
+
   Widget _buildZoomControls() {
     final zoomConfig = _zoomConfig;
     if (!_isZoomEnabled || zoomConfig == null) {
@@ -1894,6 +1927,7 @@ class _AnimatedCristalyseChartWidgetState
       _emitZoomEvent(plotArea, ZoomState.start);
       _emitZoomEvent(plotArea, ZoomState.update);
       _emitZoomEvent(plotArea, ZoomState.end);
+      _emitPanUpdateFromZoom();
     }
   }
 

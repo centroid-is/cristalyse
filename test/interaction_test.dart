@@ -742,5 +742,128 @@ void main() {
         expect(find.byType(CustomPaint), findsWidgets);
       });
     });
+
+    group('Viewport Preservation', () {
+      testWidgets(
+        'pan viewport should be preserved when data list reference changes',
+        (WidgetTester tester) async {
+          final panController = PanController();
+          final panEndInfos = <PanInfo>[];
+
+          final wrapperKey = GlobalKey<_DataUpdatingChartState>();
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SizedBox(
+                  width: 800,
+                  height: 400,
+                  child: _DataUpdatingChart(
+                    key: wrapperKey,
+                    panController: panController,
+                    onPanEnd: (info) {
+                      panEndInfos.add(info);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Pan to a subset viewport [20, 80] x [15, 50]
+          // (full data range is roughly x: 0..100, y: 10..60)
+          panController.panTo(
+            const PanInfo(
+              state: PanState.update,
+              visibleMinX: 20.0,
+              visibleMaxX: 80.0,
+              visibleMinY: 15.0,
+              visibleMaxY: 50.0,
+            ),
+          );
+          await tester.pumpAndSettle();
+          panEndInfos.clear();
+
+          // Rebuild with new data (different list reference, same content).
+          // This triggers didUpdateWidget -> _resetViewDomains().
+          wrapperKey.currentState!.updateData();
+          await tester.pumpAndSettle();
+
+          // panReset restores original domain. If viewport was preserved,
+          // the domain changes and onPanEnd fires. If the bug is present,
+          // the viewport was already reset so panReset is a no-op.
+          panController.panReset();
+          await tester.pumpAndSettle();
+
+          expect(
+            panEndInfos,
+            isNotEmpty,
+            reason:
+                'onPanEnd should fire after panReset, proving the viewport was '
+                'preserved at [20, 80] across the data update. '
+                'If onPanEnd did not fire, the viewport was already reset to '
+                'full range by the data update (the bug).',
+          );
+
+          panController.dispose();
+        },
+      );
+    });
   });
+}
+
+/// Helper widget for viewport preservation test.
+/// Rebuilds the chart with a new list reference (same content) to simulate
+/// real-time data updates (e.g. `.where().toList()` producing a new list).
+class _DataUpdatingChart extends StatefulWidget {
+  final PanController panController;
+  final PanCallback? onPanEnd;
+
+  const _DataUpdatingChart({
+    super.key,
+    required this.panController,
+    this.onPanEnd,
+  });
+
+  @override
+  State<_DataUpdatingChart> createState() => _DataUpdatingChartState();
+}
+
+class _DataUpdatingChartState extends State<_DataUpdatingChart> {
+  List<Map<String, dynamic>> _data = _generateData();
+
+  static List<Map<String, dynamic>> _generateData() {
+    return List.generate(
+      11,
+      (i) => {'x': i * 10.0, 'y': (i * 5.0) + 10},
+    );
+  }
+
+  void updateData() {
+    setState(() {
+      _data = _generateData();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CristalyseChart()
+        .data(_data)
+        .mapping(x: 'x', y: 'y')
+        .geomLine()
+        .geomPoint()
+        .interaction(
+          pan: PanConfig(
+            enabled: true,
+            updateXDomain: true,
+            updateYDomain: true,
+            controller: widget.panController,
+            onPanEnd: widget.onPanEnd,
+          ),
+        )
+        .scaleXContinuous()
+        .scaleYContinuous()
+        .build();
+  }
 }
