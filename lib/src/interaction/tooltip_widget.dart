@@ -42,6 +42,7 @@ class _ChartTooltipOverlayState extends State<ChartTooltipOverlay>
 
   DataPointInfo? _currentPoint;
   Offset? _currentPosition;
+  Widget? _cachedTooltipContent;
   bool _isVisible = false;
   bool _shouldShow = false; // Track intended state
 
@@ -83,9 +84,6 @@ class _ChartTooltipOverlayState extends State<ChartTooltipOverlay>
   /// Show tooltip for a data point
   @override
   void showTooltip(DataPointInfo point, Offset position) {
-    // Update current state
-    _currentPoint = point;
-    _currentPosition = position;
     _shouldShow = true;
 
     if (widget.config.builder == null) {
@@ -96,13 +94,31 @@ class _ChartTooltipOverlayState extends State<ChartTooltipOverlay>
     _hideTimer?.cancel();
     _hideTimer = null;
 
-    // If already showing a tooltip, immediately switch to new point
+    // If already showing a tooltip for the same data point, just update
+    // the position without rebuilding (prevents flicker).
     if (_isVisible && _overlayEntry != null) {
-      // Update position and recreate with new data
+      final isSamePoint = _currentPoint != null &&
+          _currentPoint!.dataIndex == point.dataIndex &&
+          _currentPoint!.seriesName == point.seriesName;
+
+      _currentPosition = position;
+
+      if (isSamePoint) {
+        // Same data point — just reposition the existing overlay
+        _overlayEntry!.markNeedsBuild();
+        return;
+      }
+
+      // Different data point — tear down and recreate
+      _currentPoint = point;
       _removeTooltip();
       _createTooltip();
       return;
     }
+
+    // Update current state
+    _currentPoint = point;
+    _currentPosition = position;
 
     // Cancel any existing show timer and start a new one
     _showTimer?.cancel();
@@ -154,18 +170,20 @@ class _ChartTooltipOverlayState extends State<ChartTooltipOverlay>
       _overlayEntry = null;
     }
 
-    final Offset capturedPosition = _currentPosition!;
-    final TooltipConfig capturedConfig = widget.config;
-    final DataPointInfo capturedPoint = _currentPoint!;
+    // Build and cache the tooltip content widget
+    _cachedTooltipContent = widget.config.builder!(_currentPoint!);
 
     _overlayEntry = OverlayEntry(
       builder: (context) {
+        // Read position from instance field so markNeedsBuild() picks up
+        // position changes. Use cached content to avoid rebuilding the
+        // tooltip widget when only the position changed (same data point).
         return _TooltipPositioned(
-          position: capturedPosition,
-          config: capturedConfig,
+          position: _currentPosition!,
+          config: widget.config,
           fadeAnimation: _fadeAnimation,
           scaleAnimation: _scaleAnimation,
-          child: capturedConfig.builder!(capturedPoint),
+          child: _cachedTooltipContent!,
         );
       },
     );
@@ -188,6 +206,7 @@ class _ChartTooltipOverlayState extends State<ChartTooltipOverlay>
       _overlayEntry = null;
     }
     _isVisible = false;
+    _cachedTooltipContent = null;
     _animationController.reset();
 
     // Clear current point reference when removing
