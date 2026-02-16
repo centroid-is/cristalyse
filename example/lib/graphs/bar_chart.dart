@@ -41,6 +41,54 @@ Widget buildBarChartTab(
                   .scaleXOrdinal()
                   .scaleYContinuous(min: 0)
                   .theme(currentTheme)
+                  .tooltip((point) {
+                    final quarter = point.data['quarter'];
+                    final rows =
+                        data.where((d) => d['quarter'] == quarter).toList();
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$quarter',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        for (final row in rows)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 1),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        row['bar'] == 'Bar 1'
+                                            ? Colors.blue
+                                            : Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${row['bar']}: ${(row['revenue'] as num).toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  }, config: const TooltipConfig(followPointer: false))
                   .animate(
                     duration: const Duration(milliseconds: 1000),
                     curve: Curves.easeOutBack,

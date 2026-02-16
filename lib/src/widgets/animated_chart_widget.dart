@@ -289,7 +289,10 @@ class _AnimatedCristalyseChartWidgetState
     if (widget.interaction.tooltip?.builder != null) {
       if (point != null) {
         // Keep showing tooltip as long as we have a valid point
-        showTooltip(hoverContext, point, globalPosition);
+        final tooltipPosition = widget.interaction.tooltip!.followPointer
+            ? globalPosition
+            : renderBox.localToGlobal(point.screenPosition);
+        showTooltip(hoverContext, point, tooltipPosition);
       } else {
         // Only hide if we truly have no nearby points
         hideTooltip(hoverContext);
@@ -422,9 +425,12 @@ class _AnimatedCristalyseChartWidgetState
 
       // Handle tooltips
       if (widget.interaction.tooltip?.builder != null) {
-        if (point != null && widget.interaction.tooltip!.followPointer) {
-          showTooltip(panContext, point, globalPosition);
-        } else if (point == null) {
+        if (point != null) {
+          final tooltipPosition = widget.interaction.tooltip!.followPointer
+              ? globalPosition
+              : renderBox.localToGlobal(point.screenPosition);
+          showTooltip(panContext, point, tooltipPosition);
+        } else {
           hideTooltip(panContext);
         }
       }
